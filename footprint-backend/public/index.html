@@ -1,0 +1,546 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Digital Footprint Analyzer</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;600;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #05060a;
+    --surface: #0d0f18;
+    --surface2: #131625;
+    --border: rgba(99,180,255,0.12);
+    --border-glow: rgba(99,180,255,0.35);
+    --accent: #63b4ff;
+    --accent2: #a78bfa;
+    --danger: #ff6b6b;
+    --warn: #fbbf24;
+    --success: #34d399;
+    --text: #e8ecf5;
+    --muted: #6b7a99;
+    --mono: 'Space Mono', monospace;
+    --sans: 'Syne', sans-serif;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(99,180,255,0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(99,180,255,0.03) 1px, transparent 1px);
+    background-size: 40px 40px;
+    pointer-events: none;
+    z-index: 0;
+  }
+  .wrap { position: relative; z-index: 1; max-width: 780px; margin: 0 auto; padding: 48px 24px 80px; }
+  .hdr { margin-bottom: 48px; text-align: center; }
+  .hdr-tag { font-family: var(--mono); font-size: 11px; color: var(--accent); letter-spacing: 3px; text-transform: uppercase; margin-bottom: 16px; opacity: 0.8; }
+  .hdr h1 { font-size: clamp(28px, 5vw, 46px); font-weight: 800; line-height: 1.1; background: linear-gradient(135deg, #e8ecf5 40%, #63b4ff 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; margin-bottom: 12px; }
+  .hdr p { font-size: 15px; color: var(--muted); max-width: 480px; margin: 0 auto; line-height: 1.6; }
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 28px; margin-bottom: 24px; transition: border-color 0.3s; }
+  .card.active-card { border-color: var(--border-glow); }
+  .step-badge { font-family: var(--mono); font-size: 10px; color: var(--accent); letter-spacing: 2px; margin-bottom: 10px; opacity: 0.7; }
+  .card h2 { font-size: 18px; font-weight: 600; margin-bottom: 20px; color: var(--text); }
+  .field { display: flex; gap: 10px; align-items: stretch; }
+  .field input { flex: 1; background: var(--surface2); border: 1px solid var(--border); border-radius: 10px; padding: 13px 16px; font-family: var(--mono); font-size: 14px; color: var(--text); outline: none; transition: border-color 0.2s, box-shadow 0.2s; }
+  .field input:focus { border-color: var(--border-glow); box-shadow: 0 0 0 3px rgba(99,180,255,0.08); }
+  .field input::placeholder { color: var(--muted); }
+  .btn { background: var(--accent); color: #050609; border: none; border-radius: 10px; padding: 13px 22px; font-family: var(--sans); font-size: 14px; font-weight: 600; cursor: pointer; white-space: nowrap; transition: opacity 0.2s, transform 0.1s; }
+  .btn:hover { opacity: 0.88; }
+  .btn:active { transform: scale(0.97); }
+  .btn:disabled { opacity: 0.35; cursor: not-allowed; transform: none; }
+  .btn.sec { background: transparent; border: 1px solid var(--border-glow); color: var(--accent); }
+  .otp-wrap { display: flex; gap: 10px; margin-bottom: 16px; justify-content: center; }
+  .otp-box { width: 52px; height: 60px; background: var(--surface2); border: 1px solid var(--border); border-radius: 10px; font-family: var(--mono); font-size: 22px; font-weight: 700; color: var(--accent); text-align: center; outline: none; transition: border-color 0.2s; }
+  .otp-box:focus { border-color: var(--border-glow); }
+  .steps-row { display: flex; align-items: center; justify-content: center; gap: 8px; margin-bottom: 40px; }
+  .step-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--border); transition: all 0.3s; }
+  .step-dot.done { background: var(--accent); }
+  .step-dot.active { background: var(--accent); width: 24px; border-radius: 4px; }
+  .step-line { width: 32px; height: 1px; background: var(--border); transition: background 0.3s; }
+  .step-line.done { background: var(--accent); opacity: 0.4; }
+  .hint { font-size: 12px; color: var(--muted); margin-top: 10px; font-family: var(--mono); text-align: center; }
+  .hint.err { color: var(--danger); }
+  .hint.ok { color: var(--success); }
+  .loading-block { text-align: center; padding: 40px 0; }
+  .spinner { width: 36px; height: 36px; border: 2px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.8s linear infinite; margin: 0 auto 16px; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .loading-block p { font-family: var(--mono); font-size: 12px; color: var(--muted); letter-spacing: 1px; }
+  .scan-ticker { font-family: var(--mono); font-size: 11px; color: var(--accent); margin-top: 12px; min-height: 16px; opacity: 0.7; }
+  .risk-hero { display: flex; align-items: center; gap: 24px; margin-bottom: 28px; }
+  .risk-dial { position: relative; width: 90px; height: 90px; flex-shrink: 0; }
+  .risk-dial svg { width: 90px; height: 90px; }
+  .risk-dial .dial-label { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+  .risk-dial .dial-num { font-family: var(--mono); font-size: 20px; font-weight: 700; line-height: 1; }
+  .risk-dial .dial-unit { font-size: 10px; color: var(--muted); }
+  .risk-summary h3 { font-size: 16px; font-weight: 600; margin-bottom: 6px; }
+  .risk-summary p { font-size: 13px; color: var(--muted); line-height: 1.6; }
+  .breach-list { display: flex; flex-direction: column; gap: 14px; }
+  .breach-item { background: var(--surface2); border: 1px solid var(--border); border-radius: 12px; padding: 16px 18px; display: flex; gap: 14px; align-items: flex-start; }
+  .breach-icon { width: 36px; height: 36px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 16px; flex-shrink: 0; }
+  .breach-icon.high { background: rgba(255,107,107,0.12); }
+  .breach-icon.med { background: rgba(251,191,36,0.12); }
+  .breach-icon.low { background: rgba(52,211,153,0.1); }
+  .breach-info h4 { font-size: 14px; font-weight: 600; margin-bottom: 4px; }
+  .breach-info p { font-size: 12px; color: var(--muted); line-height: 1.5; }
+  .breach-meta { display: flex; gap: 8px; margin-top: 8px; flex-wrap: wrap; }
+  .tag { font-family: var(--mono); font-size: 10px; padding: 3px 8px; border-radius: 5px; letter-spacing: 0.5px; }
+  .tag.red { background: rgba(255,107,107,0.12); color: #ff9f9f; }
+  .tag.amber { background: rgba(251,191,36,0.12); color: #fcd34d; }
+  .tag.blue { background: rgba(99,180,255,0.1); color: #93c5fd; }
+  .tag.purple { background: rgba(167,139,250,0.1); color: #c4b5fd; }
+  .tag.green { background: rgba(52,211,153,0.1); color: #6ee7b7; }
+  .section-head { display: flex; align-items: center; gap: 12px; margin-bottom: 20px; }
+  .section-head h2 { font-size: 18px; font-weight: 600; }
+  .section-head .line { flex: 1; height: 1px; background: var(--border); }
+  .res-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 14px; }
+  .res-card { background: var(--surface2); border: 1px solid var(--border); border-radius: 12px; padding: 16px; cursor: pointer; transition: border-color 0.2s, transform 0.15s; text-decoration: none; display: block; }
+  .res-card:hover { border-color: var(--border-glow); transform: translateY(-2px); }
+  .res-type { font-family: var(--mono); font-size: 10px; color: var(--muted); letter-spacing: 1px; margin-bottom: 8px; }
+  .res-card h4 { font-size: 14px; font-weight: 600; margin-bottom: 6px; color: var(--text); }
+  .res-card p { font-size: 12px; color: var(--muted); line-height: 1.5; }
+  .res-link { font-family: var(--mono); font-size: 11px; color: var(--accent); margin-top: 10px; display: flex; align-items: center; gap: 4px; }
+  .action-list { display: flex; flex-direction: column; gap: 10px; }
+  .action-item { display: flex; gap: 12px; align-items: flex-start; padding: 14px 16px; background: var(--surface2); border: 1px solid var(--border); border-radius: 10px; }
+  .action-num { font-family: var(--mono); font-size: 11px; color: var(--accent); width: 20px; flex-shrink: 0; padding-top: 1px; }
+  .action-item h4 { font-size: 13px; font-weight: 600; margin-bottom: 4px; }
+  .action-item p { font-size: 12px; color: var(--muted); line-height: 1.5; }
+  .summary-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 28px; }
+  .stat-box { background: var(--surface2); border: 1px solid var(--border); border-radius: 12px; padding: 14px 16px; text-align: center; }
+  .stat-box .num { font-family: var(--mono); font-size: 26px; font-weight: 700; line-height: 1; margin-bottom: 4px; }
+  .stat-box .lbl { font-size: 11px; color: var(--muted); letter-spacing: 0.5px; }
+  .hidden { display: none !important; }
+  @keyframes shake { 0%,100%{transform:translateX(0)} 20%{transform:translateX(-6px)} 40%{transform:translateX(6px)} 60%{transform:translateX(-4px)} 80%{transform:translateX(4px)} }
+  .shake { animation: shake 0.4s ease; }
+  @keyframes fadeUp { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: translateY(0); } }
+  .fade-in { animation: fadeUp 0.5s ease forwards; }
+  .email-display { font-family: var(--mono); font-size: 13px; color: var(--accent); background: rgba(99,180,255,0.06); padding: 8px 14px; border-radius: 8px; margin-bottom: 16px; display: inline-block; }
+  .resend-btn { background: none; border: none; color: var(--accent); font-family: var(--mono); font-size: 11px; cursor: pointer; padding: 0; text-decoration: underline; opacity: 0.7; }
+  .resend-btn:hover { opacity: 1; }
+  .countdown { font-family: var(--mono); font-size: 11px; color: var(--muted); margin-top: 6px; text-align: center; }
+  @media (max-width: 480px) {
+    .summary-row { grid-template-columns: 1fr 1fr; }
+    .res-grid { grid-template-columns: 1fr; }
+    .risk-hero { flex-direction: column; text-align: center; }
+    .field { flex-direction: column; }
+    .field .btn { width: 100%; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="hdr fade-in">
+    <div class="hdr-tag">// digital security audit</div>
+    <h1>Digital Footprint<br>Analyzer</h1>
+    <p>Scan your email across known data breaches and get personalized remediation guidance.</p>
+  </div>
+
+  <div class="steps-row" id="stepsRow">
+    <div class="step-dot active" id="dot1"></div>
+    <div class="step-line" id="line1"></div>
+    <div class="step-dot" id="dot2"></div>
+    <div class="step-line" id="line2"></div>
+    <div class="step-dot" id="dot3"></div>
+  </div>
+
+  <!-- STEP 1 -->
+  <div class="card active-card fade-in" id="step1">
+    <div class="step-badge">STEP 01 // IDENTITY</div>
+    <h2>Enter your email address</h2>
+    <div class="field">
+      <input type="email" id="emailInput" placeholder="you@example.com" autocomplete="email" />
+      <button class="btn" id="sendOtpBtn" onclick="sendOTP()">Send OTP</button>
+    </div>
+    <p class="hint" id="emailHint">A 6-digit verification code will be sent to this address.</p>
+  </div>
+
+  <!-- STEP 2 -->
+  <div class="card hidden" id="step2">
+    <div class="step-badge">STEP 02 // VERIFY</div>
+    <h2>Enter verification code</h2>
+    <div class="email-display" id="otpEmailLabel"></div>
+    <div class="otp-wrap" id="otpBoxes"></div>
+    <div style="text-align:center; margin-bottom: 10px;">
+      <button class="btn" id="verifyBtn" onclick="verifyOTP()" style="min-width:160px">Verify &amp; Scan</button>
+    </div>
+    <p class="hint" id="otpHint">Check your inbox (and spam folder).</p>
+    <div class="countdown" id="otpCountdown"></div>
+    <div style="text-align:center; margin-top:10px;">
+      <button class="resend-btn" onclick="resendOTP()">Resend code</button>
+    </div>
+  </div>
+
+  <!-- STEP 3 -->
+  <div id="step3" class="hidden">
+    <div class="card" id="loadingCard">
+      <div class="loading-block">
+        <div class="spinner"></div>
+        <p>SCANNING DATABASES...</p>
+        <div class="scan-ticker" id="scanTicker"></div>
+      </div>
+    </div>
+    <div id="resultsArea" class="hidden"></div>
+  </div>
+</div>
+
+<script>
+// ── CONFIG — change this to your backend URL ─────────────────
+const API_BASE = 'http://localhost:3000/api';
+
+let currentEmail   = '';
+let currentSession = '';
+let countdownTimer = null;
+let pollTimer      = null;
+
+/* ── Step navigation ── */
+function goStep(n) {
+  [1,2,3].forEach(i => {
+    const dot = document.getElementById('dot'+i);
+    if (!dot) return;
+    dot.classList.remove('active','done');
+    if (i < n) dot.classList.add('done');
+    else if (i === n) dot.classList.add('active');
+    const line = document.getElementById('line'+i);
+    if (line) line.classList.toggle('done', i < n);
+  });
+}
+
+/* ── OTP boxes ── */
+function buildOtpBoxes() {
+  const wrap = document.getElementById('otpBoxes');
+  wrap.innerHTML = '';
+  for (let i = 0; i < 6; i++) {
+    const inp = document.createElement('input');
+    inp.type = 'tel'; inp.maxLength = 1;
+    inp.className = 'otp-box';
+    inp.addEventListener('input', e => {
+      e.target.value = e.target.value.replace(/\D/g,'');
+      if (e.target.value && i < 5) wrap.children[i+1].focus();
+    });
+    inp.addEventListener('keydown', e => {
+      if (e.key === 'Backspace' && !e.target.value && i > 0) wrap.children[i-1].focus();
+    });
+    inp.addEventListener('paste', e => {
+      e.preventDefault();
+      const paste = (e.clipboardData || window.clipboardData).getData('text').replace(/\D/g,'').slice(0,6);
+      [...paste].forEach((ch, j) => { if (wrap.children[j]) wrap.children[j].value = ch; });
+      if (wrap.children[Math.min(paste.length,5)]) wrap.children[Math.min(paste.length,5)].focus();
+    });
+    wrap.appendChild(inp);
+  }
+}
+
+/* ── Countdown timer ── */
+function startCountdown(seconds) {
+  if (countdownTimer) clearInterval(countdownTimer);
+  const el = document.getElementById('otpCountdown');
+  let remaining = seconds;
+  const tick = () => {
+    const m = Math.floor(remaining / 60);
+    const s = remaining % 60;
+    el.textContent = `Code expires in ${m}:${String(s).padStart(2,'0')}`;
+    if (remaining <= 0) {
+      clearInterval(countdownTimer);
+      el.textContent = 'Code expired. Please resend.';
+      el.style.color = 'var(--danger)';
+    }
+    remaining--;
+  };
+  tick();
+  countdownTimer = setInterval(tick, 1000);
+}
+
+/* ── STEP 1: Send OTP ── */
+async function sendOTP() {
+  const email = document.getElementById('emailInput').value.trim();
+  const hint  = document.getElementById('emailHint');
+  const btn   = document.getElementById('sendOtpBtn');
+
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    hint.textContent = 'Please enter a valid email address.';
+    hint.className = 'hint err';
+    document.getElementById('emailInput').classList.add('shake');
+    setTimeout(() => document.getElementById('emailInput').classList.remove('shake'), 500);
+    return;
+  }
+
+  btn.disabled = true; btn.textContent = 'Sending...';
+  hint.textContent = 'Contacting server...';
+  hint.className = 'hint';
+
+  try {
+    const res  = await fetch(`${API_BASE}/otp/send`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email }),
+    });
+    const data = await res.json();
+
+    if (!data.success) {
+      hint.textContent = data.message || 'Failed to send OTP.';
+      hint.className = 'hint err';
+      btn.disabled = false; btn.textContent = 'Send OTP';
+      return;
+    }
+
+    currentEmail = email;
+
+    document.getElementById('step1').classList.add('hidden');
+    const s2 = document.getElementById('step2');
+    s2.classList.remove('hidden');
+    s2.classList.add('active-card','fade-in');
+    document.getElementById('otpEmailLabel').textContent = email;
+    buildOtpBoxes();
+    goStep(2);
+
+    startCountdown(data.expiresIn || 600);
+    document.getElementById('otpBoxes').children[0].focus();
+
+  } catch(err) {
+    hint.textContent = 'Network error. Is the backend running?';
+    hint.className = 'hint err';
+    btn.disabled = false; btn.textContent = 'Send OTP';
+  }
+}
+
+async function resendOTP() {
+  const hint = document.getElementById('otpHint');
+  hint.textContent = 'Resending...'; hint.className = 'hint';
+  try {
+    const res  = await fetch(`${API_BASE}/otp/send`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: currentEmail }),
+    });
+    const data = await res.json();
+    hint.textContent = data.success ? 'New code sent!' : (data.message || 'Failed.');
+    hint.className = data.success ? 'hint ok' : 'hint err';
+    if (data.success) startCountdown(data.expiresIn || 600);
+  } catch {
+    hint.textContent = 'Network error.'; hint.className = 'hint err';
+  }
+}
+
+/* ── STEP 2: Verify OTP ── */
+async function verifyOTP() {
+  const boxes  = document.getElementById('otpBoxes').children;
+  const otp    = [...boxes].map(b => b.value).join('');
+  const hint   = document.getElementById('otpHint');
+  const btn    = document.getElementById('verifyBtn');
+
+  if (otp.length < 6) {
+    hint.textContent = 'Please enter all 6 digits.';
+    hint.className = 'hint err';
+    return;
+  }
+
+  btn.disabled = true; btn.textContent = 'Verifying...';
+
+  try {
+    const res  = await fetch(`${API_BASE}/otp/verify`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: currentEmail, otp }),
+    });
+    const data = await res.json();
+
+    if (!data.success) {
+      hint.textContent = data.message || 'Incorrect code.';
+      hint.className = 'hint err';
+      document.getElementById('otpBoxes').classList.add('shake');
+      setTimeout(() => document.getElementById('otpBoxes').classList.remove('shake'), 500);
+      btn.disabled = false; btn.textContent = 'Verify & Scan';
+      return;
+    }
+
+    currentSession = data.sessionId;
+    if (countdownTimer) clearInterval(countdownTimer);
+    hint.textContent = 'Verified!'; hint.className = 'hint ok';
+    setTimeout(startScan, 600);
+
+  } catch {
+    hint.textContent = 'Network error. Is the backend running?';
+    hint.className = 'hint err';
+    btn.disabled = false; btn.textContent = 'Verify & Scan';
+  }
+}
+
+/* ── STEP 3: Scan ── */
+const tickers = [
+  'querying breach databases...',
+  'cross-referencing dark web indices...',
+  'scanning credential leaks...',
+  'analyzing data broker records...',
+  'checking password hash exposure...',
+  'compiling risk profile...',
+];
+let tickIdx = 0;
+let tickInterval;
+
+async function startScan() {
+  document.getElementById('step2').classList.add('hidden');
+  const s3 = document.getElementById('step3');
+  s3.classList.remove('hidden'); s3.classList.add('fade-in');
+  goStep(3);
+
+  tickInterval = setInterval(() => {
+    document.getElementById('scanTicker').textContent = '> ' + tickers[tickIdx % tickers.length];
+    tickIdx++;
+  }, 900);
+
+  try {
+    // Kick off the scan
+    await fetch(`${API_BASE}/scan/start`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ sessionId: currentSession, email: currentEmail }),
+    });
+    // Poll for results
+    pollResults();
+  } catch {
+    clearInterval(tickInterval);
+    renderError('Could not start scan. Is the backend running?');
+  }
+}
+
+function pollResults() {
+  pollTimer = setInterval(async () => {
+    try {
+      const res  = await fetch(`${API_BASE}/scan/result/${currentSession}`);
+      const data = await res.json();
+
+      if (data.status === 'done') {
+        clearInterval(pollTimer);
+        clearInterval(tickInterval);
+        renderResults(data.data);
+      } else if (data.status === 'failed') {
+        clearInterval(pollTimer);
+        clearInterval(tickInterval);
+        renderError(data.message || 'Scan failed.');
+      }
+      // still pending/running — keep polling
+    } catch {
+      clearInterval(pollTimer);
+      clearInterval(tickInterval);
+      renderError('Lost connection to backend.');
+    }
+  }, 2000);   // poll every 2 seconds
+}
+
+/* ── Render results ── */
+function renderResults(r) {
+  document.getElementById('loadingCard').classList.add('hidden');
+  const area = document.getElementById('resultsArea');
+  area.classList.remove('hidden');
+
+  const riskColor = { LOW: '#34d399', MEDIUM: '#fbbf24', HIGH: '#f97316', CRITICAL: '#ff6b6b' };
+  const col = riskColor[r.riskLevel] || '#fbbf24';
+  const circ = buildDial(r.riskScore, col);
+
+  let breachHTML = '';
+  if (!r.breaches || r.breaches.length === 0) {
+    breachHTML = `<div style="text-align:center;padding:32px;color:var(--muted);font-size:14px"><div style="font-size:36px;margin-bottom:8px">✓</div><p>No known breaches found. Stay vigilant!</p></div>`;
+  } else {
+    breachHTML = r.breaches.map(b => {
+      const sev = (b.severity||'LOW').toUpperCase();
+      const sevClass = sev==='HIGH'?'high':sev==='MEDIUM'?'med':'low';
+      const tagColor = sev==='HIGH'?'red':sev==='MEDIUM'?'amber':'green';
+      const types = (b.data_types||b.dataTypes||[]).map(t => `<span class="tag blue">${t}</span>`).join('');
+      return `<div class="breach-item">
+        <div class="breach-icon ${sevClass}">${b.icon||'⚠'}</div>
+        <div class="breach-info">
+          <h4>${b.service_name||b.name} <span style="font-weight:400;font-size:12px;color:var(--muted)">· ${b.breach_date||b.date}</span></h4>
+          <p>${b.description}</p>
+          <div class="breach-meta"><span class="tag ${tagColor}">${sev} RISK</span>${types}</div>
+        </div>
+      </div>`;
+    }).join('');
+  }
+
+  const actHTML = (r.immediateActions||[]).map((a,i) => `
+    <div class="action-item">
+      <div class="action-num">0${i+1}</div>
+      <div><h4>${a.title}</h4><p>${a.detail}</p></div>
+    </div>`).join('');
+
+  const resHTML = (r.resources||[]).map(res => `
+    <a href="${res.url}" target="_blank" rel="noopener" class="res-card">
+      <div class="res-type">${res.type}</div>
+      <h4>${res.title}</h4>
+      <p>${res.description}</p>
+      <div class="res-link">Visit resource →</div>
+    </a>`).join('');
+
+  const expTypes = (r.exposedDataTypes||[]).map(t => `<span class="tag purple">${t}</span>`).join(' ');
+
+  area.innerHTML = `
+    <div class="card fade-in">
+      <div class="step-badge">SCAN COMPLETE // ${currentEmail}</div>
+      <h2>Risk Overview</h2>
+      <div class="risk-hero">
+        <div class="risk-dial">${circ}<div class="dial-label"><span class="dial-num" style="color:${col}">${r.riskScore}</span><span class="dial-unit">/ 100</span></div></div>
+        <div class="risk-summary"><h3 style="color:${col}">${r.riskLevel} RISK</h3><p>${r.riskSummary}</p></div>
+      </div>
+      <div class="summary-row">
+        <div class="stat-box"><div class="num" style="color:var(--danger)">${(r.breaches||[]).length}</div><div class="lbl">Breaches Found</div></div>
+        <div class="stat-box"><div class="num" style="color:var(--warn)">${(r.exposedDataTypes||[]).length}</div><div class="lbl">Data Types Exposed</div></div>
+        <div class="stat-box"><div class="num" style="color:var(--success)">${(r.immediateActions||[]).length}</div><div class="lbl">Action Items</div></div>
+      </div>
+      ${expTypes ? `<div><div style="font-size:12px;color:var(--muted);margin-bottom:8px">Exposed data types:</div>${expTypes}</div>` : ''}
+    </div>
+
+    <div style="margin-bottom:28px">
+      <div class="section-head"><h2>Data Breaches Detected</h2><div class="line"></div></div>
+      <div class="breach-list">${breachHTML}</div>
+    </div>
+
+    <div style="margin-bottom:28px">
+      <div class="section-head"><h2>Immediate Action Plan</h2><div class="line"></div></div>
+      <div class="action-list">${actHTML}</div>
+    </div>
+
+    <div style="margin-bottom:28px">
+      <div class="section-head"><h2>Remediation Resources</h2><div class="line"></div></div>
+      <div class="res-grid">${resHTML}</div>
+    </div>
+
+    <div style="text-align:center;margin-top:32px">
+      <button class="btn sec" onclick="location.reload()">← Analyze another email</button>
+    </div>`;
+}
+
+function buildDial(score, color) {
+  const r = 36, cx = 45, cy = 45;
+  const circ = 2 * Math.PI * r;
+  const offset = circ - (score / 100) * circ;
+  return `<svg viewBox="0 0 90 90" xmlns="http://www.w3.org/2000/svg">
+    <circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="rgba(99,180,255,0.1)" stroke-width="7"/>
+    <circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="${color}" stroke-width="7"
+      stroke-dasharray="${circ.toFixed(2)}" stroke-dashoffset="${offset.toFixed(2)}"
+      stroke-linecap="round" transform="rotate(-90 ${cx} ${cy})"/>
+  </svg>`;
+}
+
+function renderError(msg) {
+  document.getElementById('loadingCard').classList.add('hidden');
+  const area = document.getElementById('resultsArea');
+  area.classList.remove('hidden');
+  area.innerHTML = `<div class="card" style="text-align:center;padding:40px">
+    <p style="color:var(--danger);font-size:32px;margin-bottom:12px">⚠</p>
+    <h2 style="margin-bottom:10px">Scan Failed</h2>
+    <p style="color:var(--muted);font-size:14px;margin-bottom:20px">${msg}</p>
+    <button class="btn" onclick="location.reload()">Try again</button>
+  </div>`;
+}
+</script>
+</body>
+</html>
