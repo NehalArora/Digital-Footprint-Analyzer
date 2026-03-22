@@ -221,7 +221,7 @@ SELECT * FROM otp_verifications;
 ## 👤 Author
 
 **Nehal**
-- GitHub: [@yourusername](https://github.com/yourusername)
+- GitHub: [@NehalArora](https://github.com/NehalArora)
 
 ---
 
